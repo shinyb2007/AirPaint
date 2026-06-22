@@ -15,10 +15,11 @@ class UIManager:
         self.text_color = hex_to_bgr('#363636')
         self.accent_color = hex_to_bgr('#D1C4E9')
         
+        base_dir = os.path.dirname(os.path.abspath(__file__))
         self.icons = {}
-        self._load_icon('brush', 'assets/brush.png')
-        self._load_icon('eraser', 'assets/eraser.png')
-        self._load_icon('save', 'assets/save.png')
+        self._load_icon('brush', os.path.join(base_dir, 'assets', 'brush.png'))
+        self._load_icon('eraser', os.path.join(base_dir, 'assets', 'eraser.png'))
+        self._load_icon('save', os.path.join(base_dir, 'assets', 'save.png'))
         
         self.top_w, self.top_h = 760, 70
         self.top_x1 = (self.width - self.top_w) // 2
@@ -216,9 +217,23 @@ class UIManager:
                 if math.hypot(x - cx, y - cy) <= r + 4:
                     hover['type'] = 'favorite_color'
                     hover['value'] = i
-                    return hover
-                    
         return hover
+
+    def is_inside_hud(self, x, y):
+        """Checks if coordinate (x, y) is inside any interactive HUD panel boundary."""
+        # Top panel and margin above it
+        if y < self.top_y2:
+            return True
+        # Left sidebar panel
+        if self.left_x1 <= x <= self.left_x2 and self.left_y1 <= y <= self.left_y2:
+            return True
+        # Right sidebar panel
+        if self.right_x1 <= x <= self.right_x2 and self.right_y1 <= y <= self.right_y2:
+            return True
+        # Bottom status bar panel
+        if self.bot_x1 <= x <= self.bot_x2 and self.bot_y1 <= y <= self.bot_y2:
+            return True
+        return False
 
     def draw_ui(self, img, canvas_manager, fps=30):
         """Draws floating translucent panel cards."""
@@ -444,6 +459,18 @@ class UIManager:
         if y + h > background.shape[0] or x + w > background.shape[1] or y < 0 or x < 0:
             return
         overlay_img = overlay[:, :, :3]
-        mask = overlay[:, :, 3] / 255.0
-        for c in range(3):
-            background[y:y+h, x:x+w, c] = (background[y:y+h, x:x+w, c] * (1.0 - mask) + overlay_img[:, :, c] * mask).astype(np.uint8)
+        mask = overlay[:, :, 3:4] / 255.0
+        background[y:y+h, x:x+w] = (background[y:y+h, x:x+w] * (1.0 - mask) + overlay_img * mask).astype(np.uint8)
+
+    def add_ripple(self, x, y, color=None, max_radius=40):
+        """Appends a new ripple effect to the ripples list."""
+        r_color = color if color is not None else self.accent_color
+        self.ripples.append([int(x), int(y), 4, max_radius, r_color])
+
+    def add_notification(self, text, color=None, duration=150):
+        self.notifications.append({
+            "text": text,
+            "frames": duration,
+            "max_frames": duration,
+            "color": color or self.text_color
+        })

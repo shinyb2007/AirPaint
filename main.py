@@ -20,9 +20,14 @@ def main():
     h, w, _ = test_frame.shape
     print(f"AirPaint active. Stream dimensions: {w}x{h}")
     
+    # Establish a virtual resolution of 1280x720 for consistent UI rendering
+    target_w, target_h = 1280, 720
+    if w != target_w or h != target_h:
+        print(f"Adapting stream aspect ratio. Canvas Virtual Resolution: {target_w}x{target_h}")
+        
     tracker = HandTracker(detection_con=0.82, track_con=0.70)
-    canvas_manager = CanvasManager(width=w, height=h)
-    ui_manager = UIManager(width=w, height=h)
+    canvas_manager = CanvasManager(width=target_w, height=target_h)
+    ui_manager = UIManager(width=target_w, height=target_h)
     smoother = CoordinateSmoother(mincutoff=0.80, beta=0.03)
     
     xp, yp = 0, 0
@@ -59,6 +64,7 @@ def main():
             break
             
         img = cv2.flip(img, 1)
+        img = cv2.resize(img, (target_w, target_h))
         
         # Calculate real-time FPS
         fps_counter += 1
@@ -84,9 +90,11 @@ def main():
             # Gesture mapping conditions
             if fingers[0] == 1 and fingers[1] == 0 and fingers[2] == 0 and fingers[3] == 0 and fingers[4] == 0:
                 gesture_mode = 'save'
-            elif fingers[0] == 0 and fingers[1] == 1 and fingers[2] == 1 and fingers[3] == 1 and fingers[4] == 1:
+            elif fingers[1] == 1 and fingers[2] == 1 and fingers[3] == 1 and fingers[4] == 1:
+                # Disregard thumb state for more reliable four-finger redo gesture
                 gesture_mode = 'redo'
-            elif fingers[0] == 0 and fingers[1] == 1 and fingers[2] == 1 and fingers[3] == 1 and fingers[4] == 0:
+            elif fingers[1] == 1 and fingers[2] == 1 and fingers[3] == 1 and fingers[4] == 0:
+                # Disregard thumb state for more reliable three-finger undo gesture
                 gesture_mode = 'undo'
             elif fingers[1] == 1 and fingers[2] == 1 and fingers[3] == 0 and fingers[4] == 0:
                 gesture_mode = 'select'
@@ -102,7 +110,7 @@ def main():
                 
             if gesture_mode == 'draw':
                 # Block drawing within HUD bounds
-                if cursor_y < ui_manager.top_y2:
+                if ui_manager.is_inside_hud(cursor_x, cursor_y):
                     xp, yp = 0, 0
                 else:
                     if canvas_manager.current_tool in ['brush', 'eraser']:
@@ -280,6 +288,7 @@ def main():
             if shape_last_pt is not None:
                 canvas_manager.draw_shape(shape_start_pt, shape_last_pt)
                 ui_manager.add_notification("SHAPE COMPLETED", ui_manager.accent_color)
+                ui_manager.add_ripple(shape_last_pt[0], shape_last_pt[1], ui_manager.accent_color)
             shape_start_pt = None
             shape_last_pt = None
             
